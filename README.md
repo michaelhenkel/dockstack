@@ -318,11 +318,11 @@ automatically
 The application uses an yaml environment file to describe the infrastructure:
 
 ```
-oot@docker-dev:/etc/dockstack# cat environment.yaml
+root@docker-dev:/etc/dockstack# cat environment.yaml
 common:
-  vip_name: vip
-  vip: 10.0.0.254
-  vip_mask: 16
+  vip_name: vip				#hostname for the virtual IP
+  vip: 10.0.0.254			#virtual IP
+  vip_mask: 16   			#netmask for vip in CIDR
   domain: endor.lab
   keystone_admin_password: password
   keystone_admin_user: admin
@@ -330,14 +330,14 @@ common:
   galera_password: password
   haproxy_user: birdman
   haproxy_password: password
-containerhosts:
+containerhosts:				#section for container hosts
   host1: &host1
-    ip: 192.168.1.48
-    port: 3288
+    ip: 192.168.1.48  			#ip address of container host
+    port: 3288				#port the server application is listening on
   host2:
     ip: 192.168.1.49
     port: 3288
-containerdefault: &containerdefault
+containerdefault: &containerdefault	#container default values
   mask: 16
   gateway: 10.0.0.100
   dns: 10.0.0.1
@@ -348,12 +348,12 @@ containerdefault: &containerdefault
   precreation:
   postcreation:
   postdestroy:
-containers:
-  dns1:
+containers:				#container section
+  dns1:					#container name
     <<: *containerdefault
     ip: 10.0.0.1
     image: dns
-    volumes:
+    volumes:				#list of volumes to mount
     - /dockervolumes/dns1/dnsmasq.d:/etc/dnsmasq.d
     state: true
   puppet1:
@@ -370,13 +370,13 @@ containers:
     - /dockervolumes/puppet1/etc/puppet/puppet.conf:/etc/puppet/puppet.conf
     - /dockervolumes/puppet1/var/www:/var/www
     state: true
-    postcreation:
+    postcreation:				#list of scripts to run after container run
     - /dockervolumes/puppet1/createcert.sh
     - /dockervolumes/default/registerService.py add --container puppet1 --service
       puppet
     - /dockervolumes/default/registerService.py adddns --container puppet1 --ipaddress
       10.0.0.2 --domain endor.lab
-    postdestroy:
+    postdestroy:				#list of scripts to run after container destroy
     - /dockervolumes/default/registerService.py del --container puppet1 --service
       puppet
     - /dockervolumes/default/registerService.py deldns --container puppet1 --ipaddress
@@ -389,7 +389,7 @@ containers:
     - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
     - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
     - /dockervolumes/haproxy1/etc/supervisor/conf.d:/etc/supervisor/conf.d
-    precreation:
+    precreation:      				#list of scripts to run after container run
     - /dockervolumes/default/registerService.py delcert --container haproxy1 --domain
       endor.lab --master puppet1
     postcreation:
@@ -408,5 +408,17 @@ containers:
     - /dockervolumes/default/registerService.py delnode --container haproxy1 --service
       haproxy --domain endor.lab
     state: true
+```
+
+The server is started with
+
+```
+./dockstack-server listen
+```
+
+The client can then deploy a container:
+
+```
+./dockstack -c config1 run
 ```
 
