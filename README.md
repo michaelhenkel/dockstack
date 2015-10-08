@@ -10,7 +10,7 @@ Different software components are grouped together as an application container b
 Application containers:
 
 1. dnsmasq:  
- - manages DNS and DHCP for all following containers  
+ - manages DNS for all following containers  
 
 2. puppet:  
  - provisions configuration into all following containers  
@@ -57,10 +57,10 @@ Application containers:
 16. webui:  
  - OpenContrail webui  
 
-The Container application configurations rely on predictable ip addressing. 
-Per default docker reassignes new ip addresses in case a Container is stopped and restarted. 
+The container application configurations rely on predictable ip addressing. 
+Per default docker reassignes new ip addresses in case a container is stopped and restarted. 
 Chaning ip addresses will break most of the applications.
-Therefore the containers are started without networking and ovs-docker is used to provide networking to a Container:
+Therefore the containers are started without networking and ovs-docker is used to provide networking to a container:
 
 ```
 CONTAINER_ID=`docker run -d --name CONTAINERNAME --net=none IMAGE CMD`
