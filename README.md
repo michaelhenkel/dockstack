@@ -424,17 +424,17 @@ The client can then deploy a container:
 ./dockstack -c config1 run
 ```
 
-As there are functional dependencies the containers must be started in a certain order: 
-1. dns
-2. puppet
-3. haproxy
-4. galera
-5. rabbitmq
-6. keystone
-7. nova, neutron, cinder, glance
-8. cassandra
-9. config
-10. analytics
-11. control
-12. webui
+As there are functional dependencies the containers must be started in a certain order:  
+1. dns  
+2. puppet  
+3. haproxy  
+4. galera  
+5. rabbitmq  
+6. keystone  
+7. nova, neutron, cinder, glance  
+8. cassandra  
+9. config  
+10. analytics  
+11. control  
+12. webui  
 
