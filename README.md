@@ -59,7 +59,7 @@ Application containers:
 
 The container application configurations rely on predictable ip addressing. 
 Per default docker reassignes new ip addresses in case a container is stopped and restarted. 
-Chaning ip addresses will break most of the applications.
+Changing ip addresses will break most of the applications.
 Therefore the containers are started without networking and ovs-docker is used to provide networking to a container:
 
 ```
