@@ -127,7 +127,7 @@ Removing intermediate container 53ea06889a5e
 Successfully built 03a59cd51fbd
 ```
 
-This builds the config container:
+The created image:
 
 ```
 root@docker-dev:/etc/dockstack# docker images config
@@ -312,10 +312,12 @@ node 'compute' ,'compute1.endor.lab' ,'compute2.endor.lab' {
 
 The repository contains a client/server application which helps to
 automatically  
-- run/destroy/start/stop a container  
-- provision configuration into a container  
+- run/destroy,start/stop
+- register
+- provision configuration into  
+a container
 
-The application uses an yaml environment file to describe the infrastructure:
+The application uses a yaml environment file to describe the infrastructure:
 
 ```
 root@docker-dev:/etc/dockstack# cat environment.yaml
@@ -421,4 +423,18 @@ The client can then deploy a container:
 ```
 ./dockstack -c config1 run
 ```
+
+As there are functional dependencies the containers must be started in a certain order: 
+1. dns
+2. puppet
+3. haproxy
+4. galera
+5. rabbitmq
+6. keystone
+7. nova, neutron, cinder, glance
+8. cassandra
+9. config
+10. analytics
+11. control
+12. webui
 
