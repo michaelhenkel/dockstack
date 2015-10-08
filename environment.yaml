@@ -3,12 +3,12 @@ common:
   vip: 10.0.0.254
   vip_mask: 16
   domain: endor.lab
-  keystone_admin_password: ladakh1
+  keystone_admin_password: password
   keystone_admin_user: admin
   keystone_admin_tenant: admin
-  galera_password: ladakh1
+  galera_password: password
   haproxy_user: birdman
-  haproxy_password: ladakh1
+  haproxy_password: password
 containerhosts:
   host1: &host1
     ip: 192.168.1.48

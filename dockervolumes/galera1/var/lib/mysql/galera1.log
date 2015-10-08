@@ -12745,8 +12745,8 @@ WHERE project.domain_id = 'default'
 150923 15:38:00	  303 Query	drop database keystone
 		  303 Query	SELECT DATABASE()
 150923 15:38:16	  303 Query	CREATE DATABASE keystone
-150923 15:41:15	  303 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'ladakh1'
-150923 15:41:27	  303 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'ladakh1'
+150923 15:41:15	  303 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'password'
+150923 15:41:27	  303 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'password'
 150923 15:43:02	  304 Connect	keystone@vip.endor.lab as anonymous on keystone
 		  304 Query	SET NAMES utf8
 		  304 Query	set autocommit=0
@@ -13882,8 +13882,8 @@ WHERE user.domain_id = 'default'
 150923 15:56:17	  311 Query	drop database keystone
 		  311 Query	SELECT DATABASE()
 150923 15:56:21	  311 Query	CREATE DATABASE keystone
-150923 15:56:24	  311 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'ladakh1'
-150923 15:56:27	  311 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'ladakh1'
+150923 15:56:24	  311 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'password'
+150923 15:56:27	  311 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'password'
 150923 15:59:12	  312 Connect	keystone@vip.endor.lab as anonymous on keystone
 		  312 Query	SET NAMES utf8
 		  312 Query	set autocommit=0
@@ -15402,8 +15402,8 @@ WHERE project.domain_id = 'default'
 150923 16:47:49	  325 Query	drop database keystone
 150923 16:47:50	  325 Query	SELECT DATABASE()
 150923 16:47:53	  325 Query	CREATE DATABASE keystone
-150923 16:47:56	  325 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'ladakh1'
-150923 16:47:58	  325 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'ladakh1'
+150923 16:47:56	  325 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'password'
+150923 16:47:58	  325 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'password'
 150923 16:49:44	  326 Connect	keystone@vip.endor.lab as anonymous on keystone
 		  326 Query	SET NAMES utf8
 		  326 Query	set autocommit=0
@@ -16514,8 +16514,8 @@ WHERE region.id = 'RegionOne'
 150923 16:50:56	  331 Query	SELECT DATABASE()
 150923 16:51:02	  331 Query	drop database keystone
 150923 16:51:06	  331 Query	CREATE DATABASE keystone
-150923 16:51:10	  331 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'ladakh1'
-150923 16:51:17	  331 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'ladakh1'
+150923 16:51:10	  331 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'password'
+150923 16:51:17	  331 Query	GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'password'
 150923 16:55:39	  332 Connect	keystone@keystone1.endor.lab as anonymous on keystone
 		  332 Query	SET NAMES utf8
 		  332 Query	set autocommit=0

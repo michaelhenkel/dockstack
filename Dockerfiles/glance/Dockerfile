@@ -12,7 +12,7 @@ RUN apt-get install -y --force-yes puppet tcpdump iptables openssh-server superv
                                    python-openstackclient glance glance-api glance-common glance-registry python-glance python-glanceclient
 RUN mkdir -p /var/run/sshd 
 RUN sed -i 's/START=no/START=yes/' /etc/default/puppet
-RUN echo 'root:ladakh1' | chpasswd
+RUN echo 'root:password' | chpasswd
 RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 RUN touch /etc/init.d/supervisor-glance-api

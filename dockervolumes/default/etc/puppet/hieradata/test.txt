@@ -2,12 +2,12 @@ BBN
 common:
   dnsServer: 10.0.0.1
   domain: endor.lab
-  galera_password: ladakh1
-  haproxy_password: ladakh1
+  galera_password: password
+  haproxy_password: password
   haproxy_user: birdman
-  keystone_admin_password: ladakh1
+  keystone_admin_password: password
   keystone_admin_tenant: admin
-  keystone_admin_token: ladakh1
+  keystone_admin_token: password
   keystone_admin_user: admin
   puppetServer: puppet1
   vip: 10.0.0.254

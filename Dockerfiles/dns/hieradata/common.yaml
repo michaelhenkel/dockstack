@@ -24,9 +24,9 @@ common:
   - ha1
   - ha2
   - ha3
-  keystone_admin_password: ladakh1
+  keystone_admin_password: password
   keystone_admin_tenant: admin
-  keystone_admin_token: ladakh1
+  keystone_admin_token: password
   keystone_admin_user: admin
   openstack_nodes:
   - os1
@@ -40,9 +40,9 @@ common:
   - webui2
   - webui3
 galera:
-  password: ladakh1
+  password: password
 haproxy:
-  password: ladakh1
+  password: password
   user: birdman
 registered_services:
   cassandra:

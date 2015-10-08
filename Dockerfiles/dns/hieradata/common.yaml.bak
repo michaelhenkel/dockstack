@@ -10,11 +10,11 @@ common:
   webui_nodes: ['webui1','webui2','webui3']
   keystone_admin_user: "admin"
   keystone_admin_tenant: "admin"
-  keystone_admin_password: "ladakh1"
+  keystone_admin_password: "password"
 galera:
-  password: "ladakh1"
+  password: "password"
 haproxy:
-  user: "ladakh1"
-  password: "ladakh1"
+  user: "password"
+  password: "password"
   registered_services:
      galera_nodes: []
