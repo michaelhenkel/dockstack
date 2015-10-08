@@ -1,0 +1,162 @@
+#!/usr/bin/python
+import yaml
+import ruamel.yaml
+import argparse
+import json
+import argparse
+import subprocess
+import re
+
+svcFile = '/dockervolumes/puppet1/etc/puppet/hieradata/common.yaml'
+dnsFile = '/dockervolumes/dns1/dnsmasq.d/dns/dockstack.dns'
+siteFile = '/dockervolumes/puppet1/etc/puppet/manifests/site.pp'
+
+
+def updateService(containerName, serviceName, action):
+  if action == 'add':
+    serviceYaml=ruamel.yaml.load(open(svcFile), ruamel.yaml.RoundTripLoader)
+    svcAr = serviceYaml['registered_services'][serviceName]
+    if svcAr is None:
+      svcAr = []
+      svcAr.append(containerName)
+      serviceYaml['registered_services'][serviceName] = svcAr
+    else:
+      serviceYaml['registered_services'][serviceName].append(containerName)
+    
+  if action == 'del':
+    serviceYaml=ruamel.yaml.load(open(svcFile), ruamel.yaml.RoundTripLoader)
+    serviceYaml['registered_services'][serviceName].remove(containerName)
+    if len(serviceYaml['registered_services'][serviceName]) == 0:
+      serviceYaml['registered_services'][serviceName] = None
+
+  serviceUpdate = ruamel.yaml.dump(serviceYaml, Dumper=ruamel.yaml.RoundTripDumper)
+  f = open(svcFile, 'w')
+  f.write(serviceUpdate)
+  f.close()
+
+def updateCert(containerName, domain, master, action):
+  nodeName = containerName + '.' + domain
+  cmd = 'docker exec ' + master + ' puppet cert clean ' + nodeName
+  print cmd
+  subprocess.call(cmd.split())
+
+def getConfig(containerName, action):
+  cmd = 'docker exec ' + containerName + ' puppet agent -t'
+  print cmd
+  subprocess.call(cmd.split())
+
+def updateHaProxy(haproxy):
+  cmd = 'docker exec ' + haproxy + ' puppet agent -t'
+  subprocess.call(cmd.split())
+  cmd = 'docker exec ' + haproxy + ' supervisorctl restart haproxy'
+  subprocess.call(cmd.split())
+
+def updateDns(containerName, ipAddress, domain, action):
+  newDnsEntry = ipAddress + ' ' + containerName + '.' + domain
+  f = open(dnsFile)
+  dnsFileContent = f.read()
+  f.close()
+  dnsStringList = dnsFileContent.splitlines()
+  counter = 0
+  lineNumber = ''
+
+  for line in dnsStringList:
+    if containerName in line:
+      lineNumber = counter
+      lineContent = line
+    counter = counter + 1
+
+  if action == 'adddns':
+    if lineNumber:
+      dnsStringList[lineNumber] = newDnsEntry
+    else:
+      dnsStringList.append(newDnsEntry)
+
+  if action == 'deldns':
+    dnsStringList.remove(lineContent)
+
+  f = open(dnsFile,'w')
+  for item in dnsStringList:
+    f.write("%s\n" % item)
+  f.close()
+  cmd='docker exec dns1 pkill -x -HUP dnsmasq'
+  subprocess.call(cmd.split())
+
+def updateSitePP(containerName, serviceName, domain, action):
+  nodeName = containerName + '.' + domain
+  f = open(siteFile)
+  siteFileContent = f.read()
+  f.close()
+  serviceStringPattern = re.compile('node \''+serviceName+'\'')
+  nodeNamePattern = re.compile(nodeName)
+  siteFileStringCounter = 0
+  siteFileStringLineNumber = None
+  siteFileStringList = siteFileContent.splitlines()
+  for siteStringLine in siteFileStringList:
+    if serviceStringPattern.search(siteStringLine):
+      siteFileStringLineNumber = siteFileStringCounter
+    siteFileStringCounter = siteFileStringCounter + 1
+
+  nodeCounter = 0
+  nodeLineNumber = None
+  if siteFileStringLineNumber is not None:
+    serviceLineList = siteFileStringList[siteFileStringLineNumber].split()
+    for serviceLine in serviceLineList:
+      if nodeNamePattern.search(serviceLine):
+        nodeLineNumber = nodeCounter
+        foundServiceLine = serviceLine
+      nodeCounter = nodeCounter + 1
+  
+    if nodeLineNumber is not None:
+      if action == 'delnode':
+        serviceLineList.remove(',\'' + nodeName + '\'')
+        serviceLineList = ' '.join(serviceLineList)
+        siteFileStringList[siteFileStringLineNumber] = serviceLineList
+    else:
+      if action == 'addnode' and nodeLineNumber is None:
+        serviceLineLength = len(serviceLineList)
+        serviceLineList.insert(serviceLineLength - 1, ',\'' + nodeName + '\'')
+        serviceLineList = ' '.join(serviceLineList)
+        siteFileStringList[siteFileStringLineNumber] = serviceLineList
+
+  #print '\n'.join(siteFileStringList)
+  f = open(siteFile,'w')
+  f.write('\n'.join(siteFileStringList))
+  f.close()
+
+if __name__ == "__main__":
+
+  parser = argparse.ArgumentParser(description='updates hiera file')
+  parser.add_argument('-c','--container',
+                   help='container name')
+  parser.add_argument('-s','--service',
+                   help='service')
+  parser.add_argument('-i','--ipaddress',
+                   help='ipaddress')
+  parser.add_argument('-d','--domain',
+                   help='domain')
+  parser.add_argument('-m','--master',
+                   help='Puppet Master')
+  parser.add_argument('-x','--haproxy',
+                   help='Haproxy Container')
+  parser.add_argument("action",
+                   help='register/dns')
+  args = parser.parse_args()
+
+  if args.action == 'add' or args.action == 'del':
+    updateService(args.container, args.service, args.action)
+
+  if args.action == 'adddns' or args.action == 'deldns':
+    updateDns(args.container, args.ipaddress, args.domain, args.action)
+
+  if args.action == 'addnode' or args.action == 'delnode':
+    updateSitePP(args.container, args.service, args.domain, args.action)
+
+  if args.action == 'delcert':
+    updateCert(args.container, args.domain, args.master, args.action)
+
+  if args.action == 'getconfig':
+    getConfig(args.container, args.action)
+
+  if args.action == 'haproxy':
+    updateHaProxy(args.haproxy)

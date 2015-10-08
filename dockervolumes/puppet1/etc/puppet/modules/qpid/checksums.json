@@ -1,0 +1,16 @@
+{
+  "CHANGELOG": "4d91f485e036e20518b9aa154fa28960",
+  "Gemfile": "ecb27123d6674bac25ab2b8295addb90",
+  "LICENSE": "6d820010594487251f126c917f5bc01d",
+  "Modulefile": "e8f5e0a8ad65cf279e3f66bd8f5f1a3e",
+  "README": "7d50bc549693596f8f80994b9af1c927",
+  "Rakefile": "57c2014caff1f6ae275c2781934f4e2c",
+  "lib/puppet/provider/qpid_user/default.rb": "0b0856ef1e1d92f1115a9d3dd833e475",
+  "lib/puppet/provider/qpid_user/saslpasswd2.rb": "2375a47753db26b91bd317bb01663f4d",
+  "lib/puppet/type/qpid_user.rb": "f104d60fc6f5f3a9f9d3ac26f11e239b",
+  "manifests/server.pp": "97c7f0c73b551e482cdcd08ccf276611",
+  "metadata.json": "364b75f4e41065f2b0a95458ea7bfa61",
+  "spec/classes/qpid_server_spec.rb": "bddd78dea96a9ccdfafac78d3cab936f",
+  "spec/spec_helper.rb": "49ca7b82b3865b34d1edd5200d46aa31",
+  "templates/qpidd.conf.erb": "a3bf4cd2d52a83e784e1830e3a19b0aa"
+}

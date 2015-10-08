@@ -1,0 +1,227 @@
+#!/usr/bin/python
+import yaml
+import ruamel.yaml
+import argparse
+import json
+import urllib2
+from pprint import pprint
+
+class ContainerList(object):
+  def __init__(self):
+    self.containerList = []
+
+  def __repr__(self):
+    return self.containerList
+
+class Container(object):
+  def __init__(self, containerName):
+    self.containerName = containerName
+
+  def create(self, containerConfig):
+    self.name = self.containerName
+    self.image = containerConfig['image']
+    self.ip = containerConfig['ip']
+    self.mask = containerConfig['mask']
+    self.gateway = containerConfig['gateway']
+    self.dns = containerConfig['dns']
+    self.domain = containerConfig['domain']
+    self.bridge = containerConfig['bridge']
+    self.host = containerConfig['host']
+    self.state = containerConfig['state']
+    self.volumes = containerConfig['volumes']
+    self.precreation = containerConfig['precreation']
+    self.postcreation = containerConfig['postcreation']
+    self.postdestroy = containerConfig['postdestroy']
+    return self
+
+  def show(self):
+    print "Container %s" % self.name
+    print "  Image:            %s" % self.image
+    print "  IP:               %s" % self.ip
+    print "  Mask:             %s" % self.mask
+    print "  Gateway:          %s" % self.gateway
+    print "  Dns:              %s" % self.dns
+    print "  Domain:           %s" % self.domain
+    print "  Bridge:           %s" % self.bridge
+    print "  Host:             %s" % self.host
+    print "  Volumes:          %s" % self.volumes
+    print "  State:            %s" % self.state
+    print "  Pre Creation:     %s" % self.precreation
+    print "  Post Creation:    %s" % self.postcreation
+    print "  Post Destroy:     %s" % self.postdestroy
+
+  def get(self, property):
+    if property == 'image':
+      return self.image
+    if property == 'ip':
+      return self.ip
+    if property == 'mask':
+      return self.mask
+    if property == 'gateway':
+      return self.gateway
+    if property == 'dns':
+      return self.dns
+    if property == 'domain':
+      return self.domain
+    if property == 'bridge':
+      return self.bridge
+    if property == 'host':
+      return self.host
+    if property == 'volumes':
+      return self.volumes
+    if property == 'state':
+      return self.state
+    if property == 'precreation':
+      return self.precreation
+    if property == 'postcreation':
+      return self.postcreation
+    if property == 'postdestroy':
+      return self.postdestroy
+
+class SendHTTPData:
+   def __init__(self, data, method, host, port, action):
+       self.connection = 'http://' + host + ':' + str(port) + '/' + action
+       self.data = data
+
+   def send(self):
+       req = urllib2.Request(self.connection)
+       req.add_header('Content-Type', 'application/json')
+       response = urllib2.urlopen(req, self.data)
+       return json.loads(response.read())
+ 
+parser = argparse.ArgumentParser(description='docker manager')
+parser.add_argument('-f','--file',
+                   help='environment file')
+parser.add_argument('-c','--containerName',
+                   help='container name')
+parser.add_argument('-p','--property',
+                   help='container property')
+parser.add_argument('-hi','--hostip',default='127.0.0.1',
+                   help='container host')
+parser.add_argument('-hp','--hostport',default=3288,
+                   help='container host')
+parser.add_argument("action",
+                   help='show/list/get/create/destroy/start/stop')
+args = parser.parse_args()
+
+def toJson(containerObject):
+  return json.dumps(dict((key, getattr(containerObject,key))
+    for key in dir(containerObject)
+      if key not in dir(containerObject.__class__)))
+
+def updateContainer(containerName, attribute, value):
+  containerYaml=ruamel.yaml.load(open(envFile), ruamel.yaml.RoundTripLoader)
+  containerYaml['containers'][containerName][attribute] = value
+  yamlUpdate = ruamel.yaml.dump(containerYaml, Dumper=ruamel.yaml.RoundTripDumper)
+  f = open(envFile, 'w')
+  f.write(yamlUpdate)
+  f.close()
+  containerList = readYaml(envFile)[1]
+  newContainer = Container(containerName)
+  containerObject = newContainer.create(containerList[containerName])
+  containerObject.show()
+
+def readYaml(envFile):
+  f = open(envFile,'r')
+  yaml_file = f.read().strip()
+  yaml_object=yaml.load(yaml_file)
+  containerList = yaml_object['containers']
+  containerArray = []
+
+  for container in containerList:
+    if container != 'containerdefault':
+      newContainer = Container(container)
+      containerObject = newContainer.create(containerList[container])
+      containerArray.append(containerObject)
+  return containerArray,containerList
+
+def callServer(containerObject, action, hostip, hostport):
+    if not containerObject.get('host')['ip']:
+      containerHostIp=hostip
+    else:
+      containerHostIp=containerObject.get('host')['ip']
+    if not hostport:
+      containerHostPort=containerObject.get('host')['port']
+    else:
+      containerHostPort=hostport
+
+    jsonObject=toJson(containerObject)
+    result = SendHTTPData(data=jsonObject,method='POST',host=containerHostIp,
+                          port=containerHostPort,action=action).send()
+    return result
+
+if __name__ == "__main__":
+  if not args.file:
+    envFile = 'environment.yaml'
+
+  containerArray = readYaml(envFile)[0]
+  containerList = readYaml(envFile)[1]
+
+#  if args.action == 'show':
+#    for container in containerArray:
+#      if container.name == args.containerName:
+#        container.show()
+
+  if args.action == 'list':
+    for container in containerArray:
+      container.show()
+
+  if args.action == 'get':
+    for container in containerArray:
+      if container.name == args.containerName:
+        print container.get(args.property)
+
+
+  if args.action == 'run' or \
+     args.action == 'destroy' or \
+     args.action == 'stop' or \
+     args.action == 'show' or \
+     args.action == 'start':
+    
+    if not args.containerName:
+      for container in containerArray:
+        newContainer = Container(container.name)
+        containerObject = newContainer.create(containerList[container.name])
+
+        if not containerObject.get('host')['ip']:
+          containerHostIp=args.hostip
+        else:
+          containerHostIp=containerObject.get('host')['ip']
+        if not args.hostport:
+          containerHostPort=containerObject.get('host')['port']
+        else:
+          containerHostPort=args.hostport
+
+        result = callServer(containerObject, args.action, containerHostIp, containerHostPort)
+        if result != 'Container not defined':
+            state=result['State']['Running']
+        else:
+            state = 'Container not defined'
+        updateContainer(container.name, 'state', state)
+#        pprint(result)
+
+    else:
+      newContainer = Container(args.containerName)
+      containerObject = newContainer.create(containerList[args.containerName])
+
+      if not containerObject.get('host')['ip']:
+        containerHostIp=args.hostip
+      else:
+        containerHostIp=containerObject.get('host')['ip']
+      if not args.hostport:
+        containerHostPort=containerObject.get('host')['port']
+      else:
+        containerHostPort=args.hostport
+
+      result = callServer(containerObject, args.action, containerHostIp, containerHostPort)
+      if result != 'Container not defined':
+          if 'State' in result:
+            state=result['State']['Running']
+          else:
+            state=result
+      else:
+          state = 'Container not defined'
+      updateContainer(args.containerName, 'state', state)
+#      pprint(result)
+
+

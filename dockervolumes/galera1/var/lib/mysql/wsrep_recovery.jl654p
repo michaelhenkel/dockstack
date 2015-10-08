@@ -1,0 +1,16 @@
+150918 17:04:38 [ERROR] mysqld: Can't create/write to file '/var/lib/mysql/aria_log_control' (Errcode: 13)
+150918 17:04:38 [ERROR] mysqld: Got error 'Can't create file' when trying to use aria control file '/var/lib/mysql/aria_log_control'
+150918 17:04:38 [ERROR] Plugin 'Aria' init function returned error.
+150918 17:04:38 [ERROR] Plugin 'Aria' registration as a STORAGE ENGINE failed.
+150918 17:04:38 InnoDB: The InnoDB memory heap is disabled
+150918 17:04:38 InnoDB: Mutexes and rw_locks use GCC atomic builtins
+150918 17:04:38 InnoDB: Compressed tables use zlib 1.2.8
+150918 17:04:38 InnoDB: Using Linux native AIO
+150918 17:04:38 InnoDB: Initializing buffer pool, size = 128.0M
+150918 17:04:38 InnoDB: Completed initialization of buffer pool
+150918 17:04:38  InnoDB: Operating system error number 13 in a file operation.
+InnoDB: The error means mysqld does not have the access rights to
+InnoDB: the directory.
+InnoDB: File name ./ibdata1
+InnoDB: File operation call: 'create'.
+InnoDB: Cannot continue operation.

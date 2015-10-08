@@ -1,0 +1,561 @@
+class mymod::ha (
+) inherits mymod::params {
+
+  $auth_string = join(["auth  ",$haproxy_user,":",$haproxy_password],'')
+  notify { "haproxy nodes: $haproxy_nodes" :; }
+  notify { "haproxy user: $haproxy_user" :; }
+  notify { "haproxy password: $haproxy_password" :; }
+  class { 'haproxy':
+       service_manage   => false,
+       global_options   => {
+          'log'           => "127.0.0.1 local2",
+          'chroot'        => '/var/lib/haproxy',
+          'pidfile'       => '/var/run/haproxy.pid',
+          'maxconn'       => '4000',
+          'user'          => 'haproxy',
+          'group'         => 'haproxy',
+          'daemon'        => '',
+    	   stats       => [
+                'socket /var/lib/haproxy/stats mode 600 level admin',
+           ]
+       },
+       defaults_options => {
+	  'source'  => $vip,
+          'log'     => 'global',
+          'stats'   => 'enable',
+          'option'  => 'redispatch',
+          'retries' => '3',
+          'timeout' => [
+                  'http-request 20min',
+                  'queue 1m',
+                  'connect 20min',
+                  'client 20min',
+                  'server 20min',
+                  'check 10s',
+          ],
+          'maxconn' => '8000',
+      },
+  }
+  service { "haproxy":
+    ensure   => running,
+    start    => "supervisorctl -c /etc/supervisor/supervisor.conf start haproxy",
+    stop     => "supervisorctl -c /etc/supervisor/supervisor.conf stop haproxy",
+    restart  => "supervisorctl -c /etc/supervisor/supervisor.conf restart haproxy",
+    pattern  => "haproxy"
+  }
+  haproxy::listen { 'haproxy-monitoring':
+    mode 	=> 'http',
+    ipaddress	=> '0.0.0.0',
+    ports	=> '888',
+    options     => {
+          stats       => [
+        	'enable',
+        	'show-legends',
+        	'refresh 5s',
+        	'uri /',
+        	'realm Haproxy\ Statistics',
+        	$auth_string,
+		#'stats timeout 2m'
+        	#'admin if TRUE',
+    	  ]
+    }
+  }
+
+  if (size($registered_dashboard) > 0 ){
+    haproxy::listen { 'dashboard':
+      ipaddress   => '0.0.0.0',
+      ports       => '80',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+    haproxy::balancermember { 'dashboard':
+      listening_service => 'dashboard',
+      server_names      => $registered_dashboard,
+      ipaddresses       => $registered_dashboard,
+      ports             => '80',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+  if (size($registered_galera) > 0 ){
+    haproxy::listen { 'galera':
+      mode        => 'tcp',
+      ipaddress   => '0.0.0.0',
+      ports       => '3306',
+      options     => [
+          {'option'       => [
+                  'tcpka',
+                  'nolinger',
+          ],
+          'balance'       => 'source',},
+      ]
+    }
+
+    $registered_galera.each |$index, $val| { if($index== 0) {
+      haproxy::balancermember { $val:
+        listening_service => 'galera',
+        server_names      => $val,
+        ipaddresses       => $val,
+        ports             => '3306',
+        options           => [
+            'check',
+            'weight 200',
+            'inter 2000',
+            'rise 2',
+            'fall 3',
+        ]
+      }
+    }else{
+        haproxy::balancermember { $val:
+        listening_service => 'galera',
+        server_names      => $val,
+        ipaddresses       => $val,
+        ports             => '3306',
+        options           => [
+            'check',
+            'weight 200',
+            'inter 2000',
+            'rise 2',
+            'fall 3',
+            'backup',
+        ]
+      }
+    }
+   }
+  }
+
+  if (size($registered_rabbitmq) > 0 ){
+    haproxy::listen { 'rabbitmq':
+      mode        => 'tcp',
+      ipaddress   => '0.0.0.0',
+      ports       => '5672',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'nolinger',
+          ],
+          'balance'       => 'leastconn',
+      },
+    }
+
+    haproxy::balancermember { 'rabbitmq':
+      listening_service => 'rabbitmq',
+      server_names      => $registered_rabbitmq,
+      ipaddresses       => $registered_rabbitmq,
+      ports             => '5672',
+      options           => [
+            'weight 200',
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 3',
+        ]
+    }
+  }
+
+  if (size($registered_glance) > 0 ){
+    haproxy::listen { 'glance-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '9292',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::listen { 'glance-registry':
+      ipaddress   => '0.0.0.0',
+      ports       => '9191',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'glance-api':
+      listening_service => 'glance-api',
+      server_names      => $registered_glance,
+      ipaddresses       => $registered_glance,
+      ports             => '9292',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+
+    haproxy::balancermember { 'glance-registry':
+      listening_service => 'glance-registry',
+      server_names      => $registered_glance,
+      ipaddresses       => $registered_glance,
+      ports             => '9191',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+
+  if (size($registered_keystone) > 0 ){
+    haproxy::listen { 'keystone-int':
+      ipaddress   => '0.0.0.0',
+      ports       => '35357',
+      options     => [
+          {'option'       => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+             ],
+          'balance'       => 'roundrobin',
+          },
+      ]
+    }
+
+    haproxy::listen { 'keystone-ext':
+      ipaddress   => '0.0.0.0',
+      ports       => '5000',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'keystone-int':
+      listening_service => 'keystone-int',
+      server_names      => $registered_keystone,
+      ipaddresses       => $registered_keystone,
+      ports             => '35357',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+
+    haproxy::balancermember { 'keystone-ext':
+      listening_service => 'keystone-ext',
+      server_names      => $registered_keystone,
+      ipaddresses       => $registered_keystone,
+      ports             => '5000',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+
+  if (size($registered_cinder) > 0 ){
+ 
+    haproxy::listen { 'cinder-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '8776',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'cinder-api':
+      listening_service => 'cinder-api',
+      server_names      => $registered_cinder,
+      ipaddresses       => $registered_cinder,
+      ports             => '8776',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+  if (size($registered_nova) > 0 ){
+    haproxy::listen { 'nova-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '8773',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+   }
+    haproxy::listen { 'nova-metadata':
+      ipaddress   => '0.0.0.0',
+      ports       => '8775',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::listen { 'nova-compute-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '8774',
+      options     => {
+          'option'        => [
+                'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+    haproxy::balancermember { 'nova-api':
+      listening_service => 'nova-api',
+      server_names      => $registered_nova,
+      ipaddresses       => $registered_nova,
+      ports             => '8773',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+
+    haproxy::balancermember { 'nova-metadata':
+      listening_service => 'nova-metadata',
+      server_names      => $registered_nova,
+      ipaddresses       => $registered_nova,
+      ports             => '8775',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+
+    haproxy::balancermember { 'nova-compute-api':
+      listening_service => 'nova-compute-api',
+      server_names      => $registered_nova,
+      ipaddresses       => $registered_nova,
+      ports             => '8774',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+
+
+  if (size($registered_neutron) > 0 ){
+    haproxy::listen { 'neutron-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '9696',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'httpchk',
+                  'tcplog',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+    haproxy::balancermember { 'neutron-api':
+      listening_service => 'neutron-api',
+      server_names      => $registered_neutron,
+      ipaddresses       => $registered_neutron,
+      ports             => '9696',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+   
+  }
+
+  if (size($registered_config) > 0 ){
+    haproxy::listen { 'ifmap':
+      mode        => 'tcp',
+      ipaddress   => '0.0.0.0',
+      ports       => '8443',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'nolinger',
+          ],
+          'balance'       => 'leastconn',
+      },
+    }
+
+    haproxy::balancermember { 'ifmap':
+      listening_service => 'ifmap',
+      server_names      => $registered_config,
+      ipaddresses       => $registered_config,
+      ports             => '8443',
+      options           => [
+            'weight 200',
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 3',
+        ]
+    }
+    haproxy::listen { 'ifmap-adm':
+      mode        => 'tcp',
+      ipaddress   => '0.0.0.0',
+      ports       => '8444',
+      options     => {
+          'option'        => [
+                  'tcpka',
+                  'nolinger',
+          ],
+          'balance'       => 'leastconn',
+      },
+    }
+
+    haproxy::balancermember { 'ifmap-adm':
+      listening_service => 'ifmap-adm',
+      server_names      => $registered_config,
+      ipaddresses       => $registered_config,
+      ports             => '8444',
+      options           => [
+            'weight 200',
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 3',
+        ]
+    }
+
+
+    haproxy::listen { 'discover':
+      ipaddress   => '0.0.0.0',
+      ports       => '5998',
+      options     => {
+          'option'        => [
+                  'nolinger',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::listen { 'contrail-api':
+      ipaddress   => '0.0.0.0',
+      ports       => '8082',
+      options     => {
+          'option'        => [
+                  'nolinger',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'discover':
+      listening_service => 'discover',
+      server_names      => $registered_config,
+      ipaddresses       => $registered_config,
+      ports             => '5998',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+    haproxy::balancermember { 'contrail-api':
+      listening_service => 'contrail-api',
+      server_names      => $registered_config,
+      ipaddresses       => $registered_config,
+      ports             => '8082',
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+  if (size($registered_analytics) > 0 ){
+
+    haproxy::listen { 'analytics':
+      ipaddress   => '0.0.0.0',
+      ports       => [ '9081', '8086' ],
+      options     => {
+          'option'        => [
+                  'nolinger',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'analytics':
+      listening_service => 'analytics',
+      server_names      => $registered_analytics,
+      ipaddresses       => $registered_analytics,
+      ports             => [ '9081', '8086' ],
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+
+  }
+  if (size($registered_webui) > 0 ){
+    haproxy::listen { 'webui':
+      ipaddress   => '0.0.0.0',
+      ports       => [ '8080', '8143' ],
+      options     => {
+          'option'        => [
+                  'nolinger',
+          ],
+          'balance'       => 'roundrobin',
+      },
+    }
+
+    haproxy::balancermember { 'webui':
+      listening_service => 'webui',
+      server_names      => $registered_webui,
+      ipaddresses       => $registered_webui,
+      ports             => ['8080','8143'],
+      options           => [
+            'check',
+            'inter 2000',
+            'rise 2',
+            'fall 5',
+        ]
+    }
+  }
+}

@@ -1,0 +1,254 @@
+#!/usr/bin/python
+import socket
+import fcntl
+import struct
+import json
+import argparse
+import subprocess
+import sys
+import time
+import socket
+import daemon
+import SocketServer
+import logging
+import cgi
+import threading
+import os
+import yaml
+from shutil import copy, copytree, rmtree
+from docker import Client, errors
+from docker.utils import create_host_config
+from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+from pyroute2 import netns, IPDB, NetNS, NSPopen, IPRoute
+from pyroute2.netlink.rtnl.req import IPRouteRequest
+from pprint import pprint, pformat
+
+class Handler(BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        if format == 'html':
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write("body")
+        elif format == 'json':
+            self.request.sendall(json.dumps({'path':self.path}))
+        else:
+            self.request.sendall("%s\t%s" %('path', self.path))
+        return
+
+    def do_POST(self):
+        if not os.path.isdir('/var/run/netns'):
+           os.makedirs('/var/run/netns')
+        self.data_string = self.rfile.read(int(self.headers['Content-Length']))
+        data = json.loads(self.data_string)
+        action = Action(self.path.strip('/'), data)
+        result = action.result
+        self.request.sendall(json.dumps(result))
+
+
+class Container(object):
+  def __init__(self, containerObject):
+    self.name = containerObject['containerName']
+    self.image = containerObject['image']
+    self.ip = containerObject['ip']
+    self.mask = containerObject['mask']
+    self.gateway = containerObject['gateway']
+    self.dns = containerObject['dns']
+    self.domain = containerObject['domain']
+    self.bridge = containerObject['bridge']
+    self.host = containerObject['host']
+    self.state = containerObject['state']
+    self.volumes = containerObject['volumes']
+    self.precreation = containerObject['precreation']
+    self.postcreation = containerObject['postcreation']
+    self.postdestroy = containerObject['postdestroy']
+
+class DockerControl(Container):
+    def __init__(self,containerObject):
+        super(DockerControl, self).__init__(containerObject)
+        self.containerObject = containerObject
+        self.dockerCli = Client(base_url='unix://var/run/docker.sock')
+
+    def attachInterface(self, containerId):
+        ipString = '--ipaddress=' + self.ip + '/' + str(self.mask)
+        gatewayString = '--gateway=' + self.gateway
+        print containerId
+        subprocess.call(['ovs-docker',
+                         'add-port',
+                          self.bridge,
+                          'eth0',
+                          containerId,
+                          ipString,
+                          gatewayString])
+
+    def detachInterface(self, containerId):
+        print containerId
+        subprocess.call(['ovs-docker',
+                         'del-port',
+                          self.bridge,
+                          'eth0',
+                          containerId])
+
+    def run(self):
+        if self.precreation:
+          for cmd in self.precreation:
+            subprocess.call(cmd.split())
+
+        for volume in self.volumes:
+            newVol = volume.split(':')[0]
+            if not os.path.isdir(newVol) and not os.path.isfile(newVol):
+                os.makedirs(newVol)
+        volumesArray = []
+        for volume in volumesArray:
+          sVol = volume.split(':')[0]
+          dVol = volume.split(':')[1]
+          volumesArray.append({sVol:dVol})
+        host_config = create_host_config(privileged=True,
+                                         cap_add = ['NET_ADMIN'],
+                                         dns = [self.dns],
+                                         dns_search = [self.domain],
+                                         binds = self.volumes,
+                                         network_mode = "none")
+        try:
+          container = self.dockerCli.create_container(image=self.image,
+                                                    name=self.name,
+                                                    domainname=self.domain,
+                                                    hostname=self.name, 
+                                                    #volumes = self.volumes,
+                                                    volumes = volumesArray,
+                                                    detach=True,
+                                                    host_config = host_config)
+        except errors.APIError as A:
+          return A.explanation.strip('"')
+        self.dockerCli.start(container=container.get('Id'))
+        containerInfo = self.dockerCli.inspect_container(container=container.get('Id'))
+        ipString = '--ipaddress=' + self.ip + '/' + str(self.mask)
+        gatewayString = '--gateway=' + self.gateway
+        self.attachInterface(container.get('Id'))
+        if self.postcreation:
+          for cmd in self.postcreation:
+            subprocess.call(cmd.split())
+        
+        if containerInfo:
+            return containerInfo
+        return 'Not Running'
+
+    def start(self):
+        containerList = self.dockerCli.containers(all=True)
+        for container in containerList:
+            if container['Names'][0].strip('/') == self.name:
+                containerId = container['Id']
+        self.dockerCli.start(container=containerId)
+        self.attachInterface(containerId)
+        containerInfo = self.dockerCli.inspect_container(container=containerId)
+        if containerInfo:
+            return containerInfo
+        return 'Not Running'
+
+    def show(self):
+        containerId = None
+        containerList = self.dockerCli.containers(all=True)
+        print self.name
+        for container in containerList:
+            if container['Names'][0].strip('/') == self.name:
+                containerId = container['Id']
+        if containerId:
+            containerInfo = self.dockerCli.inspect_container(container=containerId)
+            return containerInfo
+        return 'Container not defined'
+
+    def stop(self):
+        containerList = self.dockerCli.containers()
+        for container in containerList:
+            if container['Names'][0].strip('/') == self.name:
+                containerId = container['Id']
+        self.dockerCli.stop(container=containerId)
+        containerInfo = self.dockerCli.inspect_container(container=containerId)
+        self.detachInterface(containerId)
+        return containerInfo
+
+    def destroy(self):
+        containerList = self.dockerCli.containers()
+        for container in containerList:
+            if container['Names'][0].strip('/') == self.name:
+                containerId = container['Id']
+        self.dockerCli.stop(container=containerId)
+        self.dockerCli.remove_container(container=containerId)
+        self.detachInterface(containerId)
+        if self.postdestroy:
+          for cmd in self.postdestroy:
+            subprocess.call(cmd.split())
+        return 'Destroyed'
+
+class Action(object):
+    def __init__(self, action, containerObject):
+        self.containerObject = containerObject
+        actionToCall = getattr(self, action)
+        self.result = actionToCall()
+
+    def run(self):
+        #print 'creating: %s' % self.containerObject
+        result = DockerControl(self.containerObject).run()
+        return result
+
+    def destroy(self):
+        #print 'destroying: %s' % self.containerObject
+        result = DockerControl(self.containerObject).destroy()
+        return json.dumps({'state':'Destroyed'})
+
+    def stop(self):
+        #print 'stopping: %s' % self.containerObject
+        result = DockerControl(self.containerObject).stop()
+        return result
+
+    def start(self):
+        #print 'starting: %s' % self.containerObject
+        result = DockerControl(self.containerObject).start()
+        return result
+        
+    def show(self):
+        result = DockerControl(self.containerObject).show()
+        return result
+    
+
+
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15])
+    )[20:24])
+
+parser = argparse.ArgumentParser(description='updates hiera file')
+parser.add_argument('--ipaddress', metavar='f',
+                   help='ip address to listen on')
+parser.add_argument('--interface', metavar='f',
+                   help='interface to listen on')
+parser.add_argument('--port', metavar='f',
+                   help='port to listen on')
+parser.add_argument('action', metavar='f',
+                   help='port to listen on')
+args = parser.parse_args()
+
+if args.ipaddress:
+    HOST = args.ipaddress
+
+if args.interface:
+    HOST = get_ip_address(args.interface)
+
+if args.port:
+    PORT = args.port
+else:
+    PORT = 3288
+
+if not args.ipaddress and not args.interface:
+    HOST = get_ip_address('eth0')
+
+if __name__ == "__main__":
+    if args.action == 'listen':
+      server_address = (HOST, PORT)
+      httpd = HTTPServer(server_address, Handler)
+      print "Serving at: http://%s:%s" % (HOST, PORT)
+    httpd.serve_forever()

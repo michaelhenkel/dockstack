@@ -1,0 +1,14 @@
+{
+  "name": "dprince/qpid",
+  "version": "1.0.3",
+  "author": "Dan Prince <dprince@redhat.com>",
+  "summary": "Qpid Puppet Module",
+  "license": "Apache",
+  "source": "git://github.com/dprince/puppet-qpid.git",
+  "project_page": "https://github.com/dprince/puppet-qpid",
+  "issues_url": "https://github.com/dprince/puppet-qpid/issues",
+  "dependencies": [
+    {"name":"puppetlabs/stdlib","version_requirement":">=0.0.1"}
+  ],
+  "description": "This module manages Qpid."
+}

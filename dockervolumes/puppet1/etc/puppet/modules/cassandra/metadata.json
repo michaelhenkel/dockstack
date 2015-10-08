@@ -1,0 +1,36 @@
+{
+  "name": "midonet-cassandra",
+  "version": "1.0.4",
+  "author": "MidoNet",
+  "summary": "Configure and install Datastax Cassandra distribution",
+  "license": "Apache-2.0",
+  "source": "https://github.com/midonet/puppet-cassandra",
+  "project_page": "http://github.com/midonet/puppet-cassandra",
+  "issues_url": "https://midonet.atlassian.net/projects/MDT",
+  "tags": [
+    "midonet",
+    "cassandra",
+    "datastax"
+  ],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "RedHat",
+      "operatingsystemrelease": [
+        "7.0",
+        "6.6",
+        "6.5"
+      ]
+    },
+    {
+      "operatingsystem": "Ubuntu",
+      "operatingsystemrelease": [
+        "14.04"
+      ]
+    }
+  ],
+  "dependencies": [
+    {"name":"ripienaar-module_data","version_requirement":">=0.0.3"},
+    {"name":"puppetlabs-java","version_requirement":">=1.3.0"},
+    {"name":"puppetlabs-apt","version_requirement":">=1.7.0 <2.0.0"}
+  ]
+}

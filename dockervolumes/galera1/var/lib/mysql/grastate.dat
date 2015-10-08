@@ -1,0 +1,5 @@
+# GALERA saved state
+version: 2.1
+uuid:    012cd188-6108-11e5-a70e-8ba5e1f71e9e
+seqno:   -1
+cert_index:

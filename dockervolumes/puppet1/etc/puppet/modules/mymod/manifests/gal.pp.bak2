@@ -1,0 +1,4 @@
+class mymod::gal (
+) inherits mymod::params {
+  notify { "reg services: $registered_services":;}
+}

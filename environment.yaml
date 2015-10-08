@@ -1,0 +1,342 @@
+common:
+  vip_name: vip
+  vip: 10.0.0.254
+  vip_mask: 16
+  domain: endor.lab
+  keystone_admin_password: ladakh1
+  keystone_admin_user: admin
+  keystone_admin_tenant: admin
+  galera_password: ladakh1
+  haproxy_user: birdman
+  haproxy_password: ladakh1
+containerhosts:
+  host1: &host1
+    ip: 192.168.1.48
+    port: 3288
+  host2:
+    ip: 192.168.1.49
+    port: 3288
+containerdefault: &containerdefault
+  mask: 16
+  gateway: 10.0.0.100
+  dns: 10.0.0.1
+  domain: endor.lab
+  bridge: br0
+  host: *host1
+  volumes:
+  precreation:
+  postcreation:
+  postdestroy:
+containers:
+  dns1:
+    <<: *containerdefault
+    ip: 10.0.0.1
+    image: dns
+    volumes:
+    - /dockervolumes/dns1/dnsmasq.d:/etc/dnsmasq.d
+    state: true
+  puppet1:
+    <<: *containerdefault
+    ip: 10.0.0.2
+    image: puppet
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/puppet1/etc/puppet/hieradata/common.yaml:/etc/puppet/hieradata/common.yaml
+    - /dockervolumes/puppet1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    - /dockervolumes/puppet1/etc/puppet/hiera.yaml:/etc/puppet/hiera.yaml
+    - /dockervolumes/puppet1/etc/puppet/modules:/etc/puppet/modules
+    - /dockervolumes/puppet1/etc/puppet/manifests/site.pp:/etc/puppet/manifests/site.pp
+    - /dockervolumes/puppet1/etc/puppet/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/puppet1/var/www:/var/www
+    state: true
+    postcreation:
+    - /dockervolumes/puppet1/createcert.sh
+    - /dockervolumes/default/registerService.py add --container puppet1 --service
+      puppet
+    - /dockervolumes/default/registerService.py adddns --container puppet1 --ipaddress
+      10.0.0.2 --domain endor.lab
+    postdestroy:
+    - /dockervolumes/default/registerService.py del --container puppet1 --service
+      puppet
+    - /dockervolumes/default/registerService.py deldns --container puppet1 --ipaddress
+      10.0.0.2 --domain endor.lab
+  haproxy1:
+    <<: *containerdefault
+    ip: 10.0.0.3
+    image: haproxy
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/haproxy1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py delcert --container haproxy1 --domain
+      endor.lab --master puppet1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --container haproxy1 --service
+      haproxy
+    - /dockervolumes/default/registerService.py adddns --container haproxy1 --ipaddress
+      10.0.0.3 --domain endor.lab
+    - /dockervolumes/default/registerService.py addnode --container haproxy1 --service
+      haproxy --domain endor.lab
+    - /dockervolumes/default/registerService.py getconfig --container haproxy1
+    postdestroy:
+    - /dockervolumes/default/registerService.py del --container haproxy1 --service
+      haproxy
+    - /dockervolumes/default/registerService.py deldns --container haproxy1 --ipaddress
+      10.0.0.3 --domain endor.lab
+    - /dockervolumes/default/registerService.py delnode --container haproxy1 --service
+      haproxy --domain endor.lab
+    state: true
+  galera1:
+    <<: *containerdefault
+    ip: 10.0.0.4
+    image: galera
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/galera1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    - /dockervolumes/galera1/var/lib/mysql:/var/lib/mysql
+    precreation:
+    - /dockervolumes/default/registerService.py delcert --container galera1 --domain
+      endor.lab --master puppet1
+    - /dockervolumes/default/registerService.py add --container galera1 --service
+      galera
+    - /dockervolumes/default/registerService.py adddns --container galera1 --ipaddress
+      10.0.0.4 --domain endor.lab
+    - /dockervolumes/default/registerService.py addnode --container galera1 --service
+      galera --domain endor.lab
+    - /dockervolumes/default/registerService.py getconfig --container galera1
+    postcreation:
+    - /dockervolumes/default/registerService.py haproxy --haproxy haproxy1
+    postdestroy:
+    - /dockervolumes/default/registerService.py del --container galera1 --service
+      galera
+    - /dockervolumes/default/registerService.py deldns --container galera1 --ipaddress
+      10.0.0.4 --domain endor.lab
+    - /dockervolumes/default/registerService.py delnode --container galera1 --service
+      galera --domain endor.lab
+    - /dockervolumes/default/registerService.py haproxy --haproxy haproxy1
+    state: true
+  rabbitmq1:
+    <<: *containerdefault
+    ip: 10.0.0.5
+    image: rabbitmq
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/rabbitmq1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,getconfig,updatehaproxy
+      --container rabbitmq1 --domain endor.lab --master puppet1 --service rabbitmq
+      --ipaddress 10.0.0.5 --haproxy haproxy1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container rabbitmq1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container rabbitmq1 --domain endor.lab --master puppet1 --service rabbitmq
+      --ipaddress 10.0.0.5 --haproxy haproxy1
+    state: true
+  keystone1:
+    <<: *containerdefault
+    ip: 10.0.0.6
+    image: keystone
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/keystone1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container keystone1 --domain endor.lab --master puppet1 --service keystone
+      --ipaddress 10.0.0.6 --haproxy haproxy1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container keystone1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container keystone1 --domain endor.lab --master puppet1 --service keystone
+      --ipaddress 10.0.0.6 --haproxy haproxy1
+    state: true
+  glance1:
+    <<: *containerdefault
+    ip: 10.0.0.7
+    image: glance
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/glance1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatekeystone,updatehaproxy
+      --container glance1 --domain endor.lab --master puppet1 --service glance --ipaddress
+      10.0.0.7 --haproxy haproxy1 --keystone keystone1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container glance1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy,updatekeystone
+      --container glance1 --domain endor.lab --master puppet1 --service glance --ipaddress
+      10.0.0.7 --haproxy haproxy1 --keystone keystone1
+    state: true
+  cinder1:
+    <<: *containerdefault
+    ip: 10.0.0.8
+    image: cinder
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/cinder1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatekeystone,updatehaproxy
+      --container cinder1 --domain endor.lab --master puppet1 --service cinder --ipaddress
+      10.0.0.8 --haproxy haproxy1 --keystone keystone1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container cinder1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy,updatekeystone
+      --container cinder1 --domain endor.lab --master puppet1 --service cinder --ipaddress
+      10.0.0.8 --haproxy haproxy1 --keystone keystone1
+    state: true
+  nova1:
+    <<: *containerdefault
+    ip: 10.0.0.9
+    image: nova
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/nova1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatekeystone,updatehaproxy
+      --container nova1 --domain endor.lab --master puppet1 --service nova --ipaddress
+      10.0.0.9 --haproxy haproxy1 --keystone keystone1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container nova1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy,updatekeystone
+      --container nova1 --domain endor.lab --master puppet1 --service nova --ipaddress
+      10.0.0.9 --haproxy haproxy1 --keystone keystone1
+    state: true
+  neutron1:
+    <<: *containerdefault
+    ip: 10.0.0.10
+    image: neutron
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/neutron1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatekeystone,updatehaproxy
+      --container neutron1 --domain endor.lab --master puppet1 --service neutron --ipaddress
+      10.0.0.10 --haproxy haproxy1 --keystone keystone1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container neutron1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy,updatekeystone
+      --container neutron1 --domain endor.lab --master puppet1 --service neutron --ipaddress
+      10.0.0.10 --haproxy haproxy1 --keystone keystone1
+    state: true
+  dashboard1:
+    <<: *containerdefault
+    ip: 10.0.0.11
+    image: dashboard
+    volumes:
+    - /dockervolumes/default/supervisor.conf:/etc/supervisor/supervisor.conf
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/dashboard1/etc/supervisor/conf.d:/etc/supervisor/conf.d
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,getconfig,updatehaproxy
+      --container dashboard1 --domain endor.lab --master puppet1 --service dashboard
+      --ipaddress 10.0.0.11 --haproxy haproxy1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container dashboard1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container dashboard1 --domain endor.lab --master puppet1 --service dashboard
+      --ipaddress 10.0.0.11 --haproxy haproxy1
+    state: true
+  cassandra1:
+    <<: *containerdefault
+    ip: 10.0.0.12
+    image: cassandra
+    volumes:
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/cassandra1/etc/supervisor:/etc/supervisor
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite
+      --container cassandra1 --domain endor.lab --master puppet1 --service cassandra
+      --ipaddress 10.0.0.12
+    postcreation:
+    #- /dockervolumes/default/registerService.py add --type getconfig --container cassandra1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite
+      --container cassandra1 --domain endor.lab --master puppet1 --service cassandra
+      --ipaddress 10.0.0.12
+    state: true
+  config1:
+    <<: *containerdefault
+    ip: 10.0.0.13
+    image: config
+    volumes:
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/config1/etc/supervisor:/etc/supervisor
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container config1 --domain endor.lab --master puppet1 --service config --ipaddress
+      10.0.0.13 --haproxy haproxy1
+    postcreation:
+    #- /dockervolumes/default/registerService.py add --type getconfig --container config1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container config1 --domain endor.lab --master puppet1 --service config --ipaddress
+      10.0.0.13 --haproxy haproxy1
+    state: true
+  control1:
+    <<: *containerdefault
+    ip: 10.0.0.14
+    image: control
+    volumes:
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/control1/etc/supervisor:/etc/supervisor
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container control1 --domain endor.lab --master puppet1 --service control --ipaddress
+      10.0.0.14 --haproxy haproxy1
+    postcreation:
+    - /dockervolumes/default/registerService.py add --type getconfig --container control1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container control1 --domain endor.lab --master puppet1 --service control --ipaddress
+      10.0.0.14 --haproxy haproxy1
+    state: true
+  analytics1:
+    <<: *containerdefault
+    ip: 10.0.0.15
+    image: analytics
+    volumes:
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    - /dockervolumes/analytics1/etc/supervisor:/etc/supervisor
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container analytics1 --domain endor.lab --master puppet1 --service analytics
+      --ipaddress 10.0.0.15 --haproxy haproxy1
+    postcreation:
+    #- /dockervolumes/default/registerService.py add --type getconfig --container analytics1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container analytics1 --domain endor.lab --master puppet1 --service analytics
+      --ipaddress 10.0.0.15 --haproxy haproxy1
+    state: true
+  webui1:
+    <<: *containerdefault
+    ip: 10.0.0.16
+    image: webui
+    volumes:
+    - /dockervolumes/default/puppet.conf:/etc/puppet/puppet.conf
+    precreation:
+    - /dockervolumes/default/registerService.py add --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container webui1 --domain endor.lab --master puppet1 --service webui --ipaddress
+      10.0.0.16 --haproxy haproxy1
+    postcreation:
+    #- /dockervolumes/default/registerService.py add --type getconfig --container webui1
+    postdestroy:
+    - /dockervolumes/default/registerService.py remove --type updatecert,register,updatedns,updatesite,updatehaproxy
+      --container webui1 --domain endor.lab --master puppet1 --service webui --ipaddress
+      10.0.0.16 --haproxy haproxy1
+    state: true
+registered_services:

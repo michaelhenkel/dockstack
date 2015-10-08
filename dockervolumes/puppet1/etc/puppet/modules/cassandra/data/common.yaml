@@ -1,0 +1,4 @@
+# Cassandra-based attributes
+cassandra::seeds:
+  - 'localhost'
+cassandra::seed_address: 'localhost'
